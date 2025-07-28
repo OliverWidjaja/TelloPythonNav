@@ -14,12 +14,12 @@ pid_y = PID(kp=0.5, ki=0.01, kd=0.2, dt=CONTROL_LOOP_INTERVAL)
 pid_z = PID(kp=0.8, ki=0.02, kd=0.3, dt=CONTROL_LOOP_INTERVAL)  # More aggressive for altitude
 pd_yaw = PDController(kp=1.2, kd=0.15)
 
-# Waypoints (x, y, z, yaw) in cm and degrees
-waypoints = [
-    (0, 0, 100, 0),      # Takeoff position
-    (100, 100, 100, 90),  # Move diagonally while rotating
-    (200, 50, 150, 180),  # Final position
-    (200, 50, 50, 180)    # Landing position
+# Relative waypoints (Δx, Δy, Δz, Δyaw) in cm and degrees
+relative_waypoints = [
+    (0, 0, 100, 0),      # Takeoff and ascend 100cm
+    (100, 100, 0, 90),   # Move 100cm right and 100cm forward, rotate 90°
+    (100, -50, 50, 90),  # From current position: move 100cm right, -50cm forward, ascend 50cm
+    (0, 0, -100, 0)      # Descend 100cm to land
 ]
 
 def get_position_from_optitrack():
@@ -43,10 +43,23 @@ try:
     tello.takeoff()
     time.sleep(2)  # Stabilize
 
-    for waypoint in waypoints:
-        desired_position = waypoint[:3]  # (x, y, z)
-        desired_yaw = waypoint[3]       # yaw in degrees
-        print(f"Navigating to waypoint: {desired_position} with yaw: {desired_yaw}°")
+    # Get initial position from OptiTrack after takeoff
+    initial_position = get_position_from_optitrack()
+    initial_yaw = get_current_yaw()
+    current_absolute_target = list(initial_position) + [initial_yaw]  # [x, y, z, yaw]
+
+    for relative_waypoint in relative_waypoints:
+        # Calculate absolute target from relative waypoint
+        current_absolute_target[0] += relative_waypoint[0]  # x
+        current_absolute_target[1] += relative_waypoint[1]  # y
+        current_absolute_target[2] += relative_waypoint[2]  # z
+        current_absolute_target[3] += relative_waypoint[3]  # yaw
+        
+        desired_position = current_absolute_target[:3]
+        desired_yaw = current_absolute_target[3]
+        
+        print(f"Navigating to relative waypoint: {relative_waypoint}")
+        print(f"Absolute target: {desired_position} with yaw: {desired_yaw}°")
 
         while True:
             # Get current state from OptiTrack
